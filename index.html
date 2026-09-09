@@ -586,6 +586,24 @@
   .lab-coach.saindo { animation: coachOut 200ms ease both; }
   @keyframes coachOut { to { opacity: 0; transform: translateY(-6px) } }
 
+  /* Aviso curto ao lado do menu — resposta suficiente para o clique que só
+     erra de lugar, sem gastar o convite da ajuda nisso. */
+  .lab-tip {
+    position: fixed; z-index: 1500;
+    background: var(--n-900); color: #fff;
+    font-size: 12.5px; line-height: 18px; font-weight: 500;
+    padding: 7px 12px; border-radius: 8px; white-space: nowrap;
+    box-shadow: 0 6px 18px rgba(0,0,0,.22);
+    pointer-events: none;
+    animation: coachIn 180ms var(--ease) both;
+  }
+  .lab-tip::after {
+    content: ''; position: absolute; left: -4px; top: 50%; margin-top: -4px;
+    width: 9px; height: 9px; background: var(--n-900);
+    transform: rotate(45deg); border-radius: 1px;
+  }
+  .lab-tip.saindo { animation: coachOut 180ms ease both; }
+
   /* ── Avaliação: uma pergunta por tela ─────────────────────────────── */
   .q-view { height: 100%; overflow-y: auto; padding: 72px 56px 48px; max-width: 620px; animation: labIn 320ms var(--ease) both; }
   .q-kicker { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--n-450); margin: 0; }
@@ -748,13 +766,11 @@
       <button class="pz-iconbtn" type="button" aria-label="Notificações">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/></svg>
       </button>
+      <!-- Nasce fechada: quem chega vê só o "?" no canto, como em qualquer
+           dia normal. A apresentação vem aos 5s, quando a pessoa já leu a
+           tela e o movimento tem a chance de ser notado. -->
       <span class="pz-launcher">
-        <span class="pz-sparkles" id="sparkles" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.2 6.3L20.5 10l-6.3 2.2L12 18.5l-2.2-6.3L3.5 10l6.3-1.7L12 2z"/></svg>
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.2 6.3L20.5 10l-6.3 2.2L12 18.5l-2.2-6.3L3.5 10l6.3-1.7L12 2z"/></svg>
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.2 6.3L20.5 10l-6.3 2.2L12 18.5l-2.2-6.3L3.5 10l6.3-1.7L12 2z"/></svg>
-        </span>
-        <button class="pz-help is-open" id="help-btn" type="button" title="Precisa de ajuda?">
+        <button class="pz-help" id="help-btn" type="button" title="Precisa de ajuda?">
           <span class="ds-help-icon">
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z"/></svg>
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/></svg>
@@ -1212,14 +1228,15 @@ document.getElementById('start').addEventListener('click', () => {
   comecarGravacao();
   irPara('tarefa');
   ultimaAcaoEm = Date.now();
-  /* useAutoCollapse: a pílula se apresenta aberta e recolhe em 3,9s, depois
-     de as estrelas terminarem — SPARKLE_TOTAL_MS + SPARKLE_REST_MS. */
+  /* A pílula se apresenta sozinha aos 5s e recolhe 3,9s depois — o mesmo
+     tempo do useAutoCollapse (SPARKLE_TOTAL_MS + SPARKLE_REST_MS). Abrir na
+     carga não funcionava: acontece antes de a pessoa olhar para o canto. */
   setTimeout(() => {
-    const b = document.getElementById('help-btn');
-    if (b) b.classList.remove('is-open');
-    const s = document.getElementById('sparkles');
-    if (s) s.remove();
-  }, 3900);
+    if (jaUsouAjuda || chatEl || painelEl) return;
+    marco('pilula-se-apresentou');
+    abrirPilula();
+    setTimeout(fecharPilula, 3900);
+  }, 5000);
 });
 
 /* ═══ Quando o lojista se perde ════════════════════════════════════════
@@ -1232,11 +1249,11 @@ document.getElementById('start').addEventListener('click', () => {
    Isso é intervenção, e intervenção contamina o dado. Por isso cada convite
    é registrado: na leitura, "achou sozinho" e "achou depois da dica" não
    podem virar a mesma coisa. */
-/* Antes de 1,3 min o teste não abre a boca. Esse silêncio é o próprio dado:
-   se a dica viesse aos 25s, a resposta para "ele acha a ajuda sozinho?" seria
+/* Antes de 40s o teste não abre a boca. Esse silêncio é o próprio dado: se a
+   dica viesse cedo demais, a resposta para "ele acha a ajuda sozinho?" seria
    sempre nossa, nunca do lojista. Passado o piso, quem ainda não abriu a
    ajuda recebe o convite. */
-const PISO_PARA_CONVIDAR_MS = 78000;
+const PISO_PARA_CONVIDAR_MS = 40000;
 const PARADO_ATE_CONVIDAR_MS = 25000;
 const CLIQUES_PERDIDOS_ATE_CONVIDAR = 3;
 const INTERVALO_MINIMO_ENTRE_CONVITES_MS = 20000;
@@ -1261,20 +1278,46 @@ document.addEventListener('click', (e) => {
   if (M.fase !== 'tarefa') return;
   const dentroDaAjuda = e.target.closest('#help-btn, .pz-chat, .pz-modal, .pz-backdrop');
   if (dentroDaAjuda) { acaoUtil(); return; }
-  cliquesPerdidosSeguidos += 1;
   const alvo = e.target.closest('.pz-nav-item, .pz-toolbtn, .pz-row, .pz-search, .pz-iconbtn');
   if (alvo) marco('clique-sem-resposta', (alvo.textContent || '').trim().slice(0, 40) || alvo.className);
+
+  /* O menu tem resposta própria: um "não é por aqui" ao lado do item. Quem
+     clicou ali sabe o que quer e só errou o caminho — chamar a ajuda inteira
+     seria atropelar. Por isso o clique no menu não conta para o convite. */
+  const item = e.target.closest('.pz-nav-item');
+  if (item) { mostrarAvisoNoMenu(item); return; }
+
+  cliquesPerdidosSeguidos += 1;
   if (cliquesPerdidosSeguidos >= CLIQUES_PERDIDOS_ATE_CONVIDAR) {
     convidar(cliquesPerdidosSeguidos + ' cliques sem resposta');
   }
 }, true);
+
+let tipEl = null;
+function mostrarAvisoNoMenu(item) {
+  if (tipEl) { tipEl.remove(); tipEl = null; }
+  const r = item.getBoundingClientRect();
+  tipEl = document.createElement('div');
+  tipEl.className = 'lab-tip';
+  tipEl.setAttribute('role', 'status');
+  tipEl.textContent = 'Não é por aqui.';
+  document.body.appendChild(tipEl);
+  tipEl.style.left = (r.right + 10) + 'px';
+  tipEl.style.top = Math.round(r.top + r.height / 2 - tipEl.offsetHeight / 2) + 'px';
+  const morrendo = tipEl;
+  setTimeout(() => {
+    if (tipEl !== morrendo) return;
+    morrendo.classList.add('saindo');
+    setTimeout(() => { morrendo.remove(); if (tipEl === morrendo) tipEl = null; }, 200);
+  }, 2200);
+}
 
 setInterval(() => {
   if (M.fase !== 'tarefa' || jaUsouAjuda || !ultimaAcaoEm) return;
   if (Date.now() - M.iniciadoEm < PISO_PARA_CONVIDAR_MS) return;
   // O primeiro convite vem no piso, mesmo de quem está clicando à toa; os
   // seguintes só depois de um tempo parado.
-  if (!M.convites.length) { convidar('1,3 min sem abrir a ajuda'); return; }
+  if (!M.convites.length) { convidar('40s sem abrir a ajuda'); return; }
   if (Date.now() - ultimaAcaoEm >= PARADO_ATE_CONVIDAR_MS) convidar('parado por 25s');
 }, 3000);
 
@@ -1289,10 +1332,17 @@ function convidar(motivo) {
   M.convites.push({ motivo: motivo, emSegundos: +agora().toFixed(1) });
   marco('teste-deu-uma-dica', motivo);
 
-  /* O mesmo destaque do produto: pílula aberta, anel da marca, brilho
-     atravessando e as estrelas em volta. */
-  const botao = document.getElementById('help-btn');
+  const botao = abrirPilula();
   if (!botao) return;
+  mostrarDica(botao);
+  setTimeout(() => { if (!jaUsouAjuda) fecharPilula(); }, 5600);
+}
+
+/* O destaque do produto: pílula aberta, anel da marca, brilho atravessando e
+   as três estrelas em volta (Sparkles + highlighted, em HelpLauncher). */
+function abrirPilula() {
+  const botao = document.getElementById('help-btn');
+  if (!botao) return null;
   botao.classList.add('is-open');
   const antigas = document.getElementById('sparkles');
   if (antigas) antigas.remove();
@@ -1302,15 +1352,14 @@ function convidar(motivo) {
   estrelas.setAttribute('aria-hidden', 'true');
   estrelas.innerHTML = ('<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.2 6.3L20.5 10l-6.3 2.2L12 18.5l-2.2-6.3L3.5 10l6.3-1.7L12 2z"/></svg>').repeat(3);
   botao.parentElement.insertBefore(estrelas, botao);
+  return botao;
+}
 
-  mostrarDica(botao);
-
-  setTimeout(() => {
-    if (jaUsouAjuda) return;
-    botao.classList.remove('is-open');
-    const e = document.getElementById('sparkles');
-    if (e) e.remove();
-  }, 5600);
+function fecharPilula() {
+  const botao = document.getElementById('help-btn');
+  if (botao) botao.classList.remove('is-open');
+  const estrelas = document.getElementById('sparkles');
+  if (estrelas) estrelas.remove();
 }
 
 function mostrarDica(botao) {
