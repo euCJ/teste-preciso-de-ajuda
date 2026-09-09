@@ -1317,6 +1317,15 @@ function abrirWizard() {
   headEl = panelEl.querySelector('h1');
   bodyEl = panelEl.querySelector('.pz-body');
   panelEl.querySelector('.close').addEventListener('click', () => {
+    /* Depois de enviado, o X é só mais uma saída: encerra igual aos botões.
+       Antes disso ele fecha o painel e devolve a tela de Vendas — desistir no
+       meio é resposta, e o lojista ainda pode reabrir pelo "?". */
+    if (step === 5) {
+      marco('saiu-por', 'X');
+      fecharWizard();
+      irParaAvaliacao();
+      return;
+    }
     marco('fechou-wizard', 'passo ' + step);
     fecharWizard();
   });
@@ -1488,9 +1497,12 @@ function stepDone() {
 
 function rodape() {
   if (step === 5) {
+    /* No Partner as saídas são "Fechar" e "Acompanhar chamado". Aqui o chamado
+       não existe para ser acompanhado, e as duas levam ao mesmo lugar: o fim
+       do teste. Dizer isso no rótulo evita a promessa que não se cumpre. */
     return '<div class="pz-footer">' +
-      '<button class="pz-btn secondary" type="button" id="fechar">Fechar</button>' +
-      '<div class="acts"><button class="pz-btn primary" type="button" id="acompanhar">Acompanhar chamado</button></div></div>';
+      '<button class="pz-btn secondary" type="button" id="fechar">Voltar</button>' +
+      '<div class="acts"><button class="pz-btn primary" type="button" id="acompanhar">Finalizar teste</button></div></div>';
   }
   const start = step > 1
     ? '<button class="pz-back" type="button" id="voltar">' + SVG.back + '<span>Voltar</span></button>'
@@ -1587,9 +1599,9 @@ function ligar() {
   if (vc) vc.addEventListener('click', () => { marco('voltou-para-o-chat'); fecharWizard(); abrirChat(); });
 
   const fc = q('#fechar');
-  if (fc) fc.addEventListener('click', () => { marco('fechou-apos-enviar'); fecharWizard(); irParaAvaliacao(); });
+  if (fc) fc.addEventListener('click', () => { marco('saiu-por', 'Voltar'); fecharWizard(); irParaAvaliacao(); });
   const ac = q('#acompanhar');
-  if (ac) ac.addEventListener('click', () => { marco('clicou-acompanhar-chamado'); fecharWizard(); irParaAvaliacao(); });
+  if (ac) ac.addEventListener('click', () => { marco('saiu-por', 'Finalizar teste'); fecharWizard(); irParaAvaliacao(); });
 }
 
 function enviar() {
