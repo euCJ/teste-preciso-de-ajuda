@@ -73,6 +73,12 @@
   /* Branco nas telas do teste, para elas não se parecerem com o fundo do
      Partner; a réplica repõe o cinza dela logo abaixo. */
   .lab-main { background: var(--n-0); min-width: 0; min-height: 0; overflow: hidden; }
+  /* A réplica precisa de altura DEFINIDA, não herdada de conteúdo: sem isto
+     o `height: 100%` do .pz-app vira `auto`, a tabela cresce além da janela e
+     qualquer scrollIntoView (abrir o painel, focar o relato) arrasta a caixa
+     inteira — levando o header junto. Foi o que aconteceu nas sessões de
+     1366×599. */
+  #view-stage { height: 100%; }
   .pz-app { background: var(--page); }
 
   .lab-rail {
@@ -360,6 +366,7 @@
   .pz-overlay { position: fixed; inset: 0 0 0 var(--rail); z-index: 100; background: rgba(0,0,0,.30); backdrop-filter: blur(4px); }
   .pz-modal { position: fixed; inset: 0 0 auto auto; right: 0; height: 100%; width: 480px; padding: 16px 16px 16px 0; z-index: 101; }
   .pz-panel {
+    position: relative;
     display: flex; flex-direction: column; height: calc(100% - 32px);
     background: var(--n-0); border-radius: 16px; overflow: auto;
     transform-origin: 100% 100%;
@@ -506,6 +513,33 @@
   .pz-back { display: flex; align-items: center; gap: 8px; border: 0; background: transparent; padding: 8px 4px; font-size: 14px; line-height: 22px; color: var(--n-700); cursor: pointer; }
   .pz-back:hover { color: var(--n-900); }
 
+  /* Confirmação de descarte — folha dentro do próprio painel, e não um
+     segundo modal por cima: sair do chamado é decisão que pertence ao
+     chamado. */
+  /* Presa na MOLDURA do modal, não no painel: o painel rola, e um filho
+     absoluto dele se mede pela caixa de rolagem — em telas baixas a folha
+     caía abaixo da dobra, por cima do rodapé. */
+  .pz-discard {
+    position: absolute; inset: 16px 16px 16px 0; z-index: 40;
+    display: flex; align-items: flex-end; justify-content: stretch;
+    background: rgba(33, 33, 33, .32);
+    animation: pzFadeIn 160ms ease both;
+    border-radius: 16px;
+  }
+  @keyframes pzFadeIn { from { opacity: 0 } to { opacity: 1 } }
+  .pz-discard .folha {
+    width: 100%; background: var(--n-0);
+    border-radius: 16px 16px 0 0; padding: 20px 16px 16px;
+    box-shadow: 0 -8px 32px rgba(0,0,0,.18);
+    display: flex; flex-direction: column; gap: 6px;
+    animation: pzSheetUp 220ms var(--ease) both;
+  }
+  @keyframes pzSheetUp { from { transform: translateY(100%) } to { transform: none } }
+  .pz-discard h2 { font-size: 16px; font-weight: 500; line-height: 24px; color: var(--n-900); margin: 0; }
+  .pz-discard p { font-size: 13px; line-height: 20px; color: var(--n-600); margin: 0; }
+  .pz-discard .acoes { display: flex; gap: 8px; margin-top: 14px; }
+  .pz-discard .acoes .pz-btn { flex: 1; }
+
   /* DSButton */
   .pz-btn {
     outline: none; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
@@ -521,6 +555,8 @@
   .pz-btn.ghost { background: transparent; color: var(--n-700); }
   .pz-btn.ghost:hover { background: var(--n-100); }
   .pz-btn.soft { background: var(--n-100); color: var(--n-500); border-color: transparent; }
+  .pz-btn.danger { background: var(--r-500); color: var(--n-0); }
+  .pz-btn.danger:hover { background: var(--r-600); }
   .pz-btn:focus-visible { outline: 2px solid var(--b-500); outline-offset: 2px; }
 
   /* ── Dica do teste ────────────────────────────────────────────────────
@@ -632,6 +668,7 @@
   }
   @media (max-width: 768px) {
     .pz-modal { inset: 16px; right: 16px; width: calc(100vw - 32px); height: auto; padding: 0; }
+    .pz-discard { inset: 0; }
     .pz-panel { height: 100%; border-radius: 16px; }
     .pz-chat { right: 8px; left: 8px; bottom: 8px; width: auto; height: min(480px, calc(100vh - 16px)); }
     .pz-help { padding: 0 !important; box-shadow: none; }
@@ -1002,7 +1039,10 @@ function salvar() { /* o envio é pontual — ver enviarParaODrive() */ }
 
 async function enviarParaODrive(motivo) {
   if (!ENDPOINT) { marcarSalvo('sem-endpoint'); return false; }
-  if (!M.duracaoTotalSegundos) M.duracaoTotalSegundos = +agora().toFixed(1);
+  /* Sempre recalcula: com `if (!M.duracaoTotalSegundos)` a duração ficava
+     presa no primeiro reenvio de um minuto, e sessões de 2min apareciam no
+     relatório como 43s. */
+  if (M.fase !== 'fim') M.duracaoTotalSegundos = +agora().toFixed(1);
   const corpo = JSON.stringify({
     sessionId: SESSION_ID, motivo: motivo, md: gerarMd(), dados: M, replay: eventos,
   });
@@ -1494,15 +1534,17 @@ function abrirWizard() {
   headEl = panelEl.querySelector('h1');
   bodyEl = panelEl.querySelector('.pz-body');
   panelEl.querySelector('.close').addEventListener('click', () => {
-    /* Depois de enviado, o X é só mais uma saída: encerra igual aos botões.
-       Antes disso ele fecha o painel e devolve a tela de Vendas — desistir no
-       meio é resposta, e o lojista ainda pode reabrir pelo "?". */
+    /* Depois de enviado, o X é só mais uma saída: encerra igual aos botões. */
     if (step === 5) {
       marco('saiu-por', 'X');
       fecharWizard();
       irParaAvaliacao();
       return;
     }
+    /* Com chamado começado, o X pergunta antes: quatro sessões do primeiro
+       dia fecharam o painel no passo 1 e voltaram do zero — sem nunca
+       descobrir que estavam jogando fora o que tinham respondido. */
+    if (temRascunho()) { pedirConfirmacaoDeSaida(); return; }
     marco('fechou-wizard', 'passo ' + step);
     fecharWizard();
   });
@@ -1801,6 +1843,38 @@ function ligar() {
   if (ac) ac.addEventListener('click', () => { marco('saiu-por', 'Finalizar teste'); fecharWizard(); irParaAvaliacao(); });
 }
 
+/* Há algo a perder quando a tarefa já foi escolhida ou o relato começou. */
+function temRascunho() {
+  return Boolean(draft.taskId || draft.description.trim() || M.anexos.length);
+}
+
+function pedirConfirmacaoDeSaida() {
+  if (painelEl.querySelector('.pz-discard')) return;
+  marco('perguntou-antes-de-descartar', 'passo ' + step);
+  const folha = document.createElement('div');
+  folha.className = 'pz-discard';
+  folha.setAttribute('role', 'dialog');
+  folha.setAttribute('aria-label', 'Descartar chamado');
+  folha.innerHTML =
+    '<div class="folha">' +
+      '<h2>Descartar este chamado?</h2>' +
+      '<p>Você vai perder o que respondeu até aqui e vai precisar começar de novo.</p>' +
+      '<div class="acoes">' +
+        '<button class="pz-btn secondary" type="button" id="continuar-preenchendo">Continuar preenchendo</button>' +
+        '<button class="pz-btn danger" type="button" id="descartar">Descartar</button>' +
+      '</div>' +
+    '</div>';
+  painelEl.appendChild(folha);
+  folha.querySelector('#continuar-preenchendo').addEventListener('click', () => {
+    marco('desistiu-de-descartar', 'passo ' + step);
+    folha.remove();
+  });
+  folha.querySelector('#descartar').addEventListener('click', () => {
+    marco('descartou-o-chamado', 'passo ' + step);
+    fecharWizard();
+  });
+}
+
 function enviar() {
   M.protocolo = 'RHC-' + (300 + Math.floor(Math.random() * 99));
   step = 5;
@@ -1964,11 +2038,12 @@ function gerarMd() {
     '- **Sugestão da tela:** ' + (M.aceitouSugestao === null ? 'não respondeu' : (M.aceitouSugestao ? 'aceitou' : 'recusou')),
     '- **Achou a ajuda sozinho:** ' + (M.convites.length ? 'NÃO — o teste deu ' + M.convites.length + ' dica(s): ' + M.convites.map((c) => c.motivo + ' aos ' + c.emSegundos + 's').join('; ') : 'sim'),
     '- **Cliques em coisa que não responde:** ' + M.marcos.filter((m) => m.evento === 'clique-sem-resposta').length,
+    '- **Tentou fechar o chamado começado:** ' + M.marcos.filter((m) => m.evento === 'perguntou-antes-de-descartar').length + 'x (descartou ' + M.marcos.filter((m) => m.evento === 'descartou-o-chamado').length + 'x)',
     '- **Tentou "Abrir atendimento":** ' + (M.tentouAtendente ? 'sim' : 'não'),
     '- **Abriu "Ver mais":** ' + (M.verMaisAberto ? 'sim' : 'não'),
     '- **Trocou de tarefa:** ' + M.trocasDeTarefa + 'x · **Voltou:** ' + M.voltas + 'x',
     '- **Barrado por campo faltando:** ' + (M.barradoEm.length ? M.barradoEm.map((b) => 'passo ' + b.passo + ' (' + b.emSegundos + 's)').join(', ') : 'nunca'),
-    '- **Replay da sessão:** ' + M.gravacao,
+    '- **Replay da sessão:** ' + (eventos.length ? eventos.length + ' eventos' : M.gravacao),
     '- **Janela:** ' + M.janela + ' · ' + M.navegador,
     '',
     '## Chamado que o lojista montou',
