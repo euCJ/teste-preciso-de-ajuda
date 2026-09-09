@@ -225,13 +225,19 @@
   @keyframes pzSheen { from { transform: translateX(-120%) } to { transform: translateX(220%) } }
   .pz-help:focus-visible { outline: 2px solid var(--o-500); outline-offset: 2px; }
 
-  /* IconSwap: "?" e balão se alternando, ciclo de 7s */
+  /* IconSwap: "?" e balão se alternando, ciclo de 7s.
+
+     A opacidade de repouso está DECLARADA aqui, e não só dentro dos
+     keyframes: quando a animação não roda — modo de economia de bateria,
+     prefers-reduced-motion, extensão que desliga animações — os dois ícones
+     assumiriam a opacidade padrão 1 e ficariam empilhados um sobre o outro.
+     Com o repouso declarado, sem animação sobra o "?", que é o certo. */
   .pz-help .ds-help-icon svg {
     position: absolute; width: 24px; height: 24px;
     animation-duration: 7s; animation-timing-function: var(--ease); animation-iteration-count: infinite;
   }
-  .pz-help .ds-help-icon svg:first-child { animation-name: pzSwapOut; }
-  .pz-help .ds-help-icon svg:last-child { animation-name: pzSwapIn; }
+  .pz-help .ds-help-icon svg:first-child { opacity: 1; animation-name: pzSwapOut; }
+  .pz-help .ds-help-icon svg:last-child { opacity: 0; animation-name: pzSwapIn; }
   @keyframes pzSwapOut { 0%,44%{opacity:1;transform:none} 50%,94%{opacity:0;transform:scale(.6) rotate(-90deg)} 100%{opacity:1;transform:none} }
   @keyframes pzSwapIn { 0%,44%{opacity:0;transform:scale(.6) rotate(90deg)} 50%,94%{opacity:1;transform:none} 100%{opacity:0;transform:scale(.6) rotate(90deg)} }
   .pz-help:hover .ds-help-icon svg { animation-play-state: paused; }
@@ -712,6 +718,9 @@
   }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; }
+    /* Sem a troca, o balão não tem por que existir — é o que o HelpLauncher
+       do Partner faz no mesmo caso. */
+    .pz-help .ds-help-icon svg:last-child { display: none; }
   }
 </style>
 
