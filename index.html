@@ -247,13 +247,16 @@
   @keyframes pzTwinkle { 0%,100%{opacity:0;transform:scale(.4) rotate(0)} 35%{opacity:1;transform:scale(1) rotate(20deg)} 70%{opacity:.2;transform:scale(.7) rotate(-10deg)} }
 
   /* Sidebar */
-  .pz-side { background: var(--n-0); padding: 0 4px 24px; overflow-y: auto; min-height: 0; }
+  /* overflow-y: auto sozinho liga o eixo X junto, e o item de 181px dentro de
+     um box de 174px produzia uma barra horizontal embaixo do menu — foi um dos
+     "scrolls em lugar estranho" da sessão de 1366×633. */
+  .pz-side { background: var(--n-0); padding: 0 4px 24px; overflow-y: auto; overflow-x: hidden; min-height: 0; }
   .pz-side .store { font-size: 14px; font-weight: 500; line-height: 20px; color: var(--n-900); padding: 12px 8px 16px; }
   .pz-side .group { font-size: 10px; font-weight: 500; line-height: 16px; letter-spacing: .04em; text-transform: uppercase; color: var(--n-600); padding: 14px 8px 6px; display: flex; align-items: center; gap: 6px; }
   .pz-side .group svg { width: 14px; height: 14px; flex: none; }
   .pz-nav-item {
     display: flex; align-items: center; justify-content: space-between;
-    width: 181px; padding: 10px 4px 10px 8px; border-radius: 4px;
+    width: 100%; padding: 10px 4px 10px 8px; border-radius: 4px;
     font-size: 12px; font-weight: 400; line-height: 18px; color: var(--n-900);
     cursor: pointer; background: transparent; border: 0; text-align: left;
   }
@@ -280,13 +283,27 @@
   .pz-alert svg { flex: none; margin-top: 1px; }
 
   .pz-tablewrap { background: var(--n-0); border-radius: 8px; overflow: hidden; flex: 1; min-height: 0; display: flex; flex-direction: column; }
-  .pz-scroll { overflow: auto; flex: 1; min-height: 0; }
-  .pz-grid { min-width: 1172px; }
+  .pz-scroll {
+    overflow: auto; flex: 1; min-height: 0;
+    scrollbar-width: thin; scrollbar-color: var(--n-300) transparent;
+  }
+  .pz-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+  .pz-scroll::-webkit-scrollbar-thumb { background: var(--n-300); border-radius: 999px; }
+  .pz-scroll::-webkit-scrollbar-track { background: transparent; }
+  .pz-side { scrollbar-width: thin; scrollbar-color: var(--n-200) transparent; }
+  .pz-side::-webkit-scrollbar { width: 6px; }
+  .pz-side::-webkit-scrollbar-thumb { background: var(--n-200); border-radius: 999px; }
+  /* Sem largura mínima fixa: com 1172px, um notebook de 1366 com zoom
+     empurrava VALOR, PAGAMENTO e NOTA FISCAL para fora da tela — e o NaN, que
+     é metade do defeito plantado, ficava escondido atrás da barra horizontal.
+     As colunas agora comprimem até um piso e só depois rolam. */
+  .pz-grid { min-width: 0; }
   .pz-row {
     display: grid;
-    /* Mesmas larguras do produto; só a coluna do cliente vira elástica. */
-    grid-template-columns: 24px 50px 80px 116px 156px 1fr 80px 96px 128px 36px;
-    gap: 16px; align-items: center;
+    grid-template-columns:
+      24px 40px 76px 112px minmax(96px, 140px) minmax(70px, 1fr)
+      minmax(72px, 88px) minmax(80px, 96px) minmax(96px, 124px) 30px;
+    gap: 12px; align-items: center;
     padding: 12px 16px; min-height: 56px; background: var(--n-0);
     border-bottom: 1px solid var(--border);
     font-size: 13px; line-height: 20px; color: var(--n-900);
