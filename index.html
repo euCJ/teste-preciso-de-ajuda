@@ -526,8 +526,13 @@
   /* ── Dica do teste ────────────────────────────────────────────────────
      Aparece quando o lojista se perde. É preto, da linguagem do trilho e
      não do Partner: ninguém pode confundir a mão do teste com o produto. */
+  /* Filho do próprio lançador (.pz-launcher é relative): assim a dica anda
+     junto com a pílula, sem cálculo de posição. Duas tentativas de medir com
+     getBoundingClientRect erraram o canto — a pílula muda de largura no meio
+     da animação e empurra o header inteiro. */
   .lab-coach {
-    position: fixed; z-index: 1500; max-width: 250px;
+    position: absolute; top: calc(100% + 12px); right: -6px;
+    z-index: 1500; width: max-content; max-width: 250px;
     background: var(--n-900); color: #fff;
     font-size: 13px; line-height: 20px;
     padding: 11px 14px; border-radius: 10px;
@@ -1171,6 +1176,11 @@ document.getElementById('start').addEventListener('click', () => {
    Isso é intervenção, e intervenção contamina o dado. Por isso cada convite
    é registrado: na leitura, "achou sozinho" e "achou depois da dica" não
    podem virar a mesma coisa. */
+/* Antes de 1,3 min o teste não abre a boca. Esse silêncio é o próprio dado:
+   se a dica viesse aos 25s, a resposta para "ele acha a ajuda sozinho?" seria
+   sempre nossa, nunca do lojista. Passado o piso, quem ainda não abriu a
+   ajuda recebe o convite. */
+const PISO_PARA_CONVIDAR_MS = 78000;
 const PARADO_ATE_CONVIDAR_MS = 25000;
 const CLIQUES_PERDIDOS_ATE_CONVIDAR = 3;
 const INTERVALO_MINIMO_ENTRE_CONVITES_MS = 20000;
@@ -1205,11 +1215,16 @@ document.addEventListener('click', (e) => {
 
 setInterval(() => {
   if (M.fase !== 'tarefa' || jaUsouAjuda || !ultimaAcaoEm) return;
+  if (Date.now() - M.iniciadoEm < PISO_PARA_CONVIDAR_MS) return;
+  // O primeiro convite vem no piso, mesmo de quem está clicando à toa; os
+  // seguintes só depois de um tempo parado.
+  if (!M.convites.length) { convidar('1,3 min sem abrir a ajuda'); return; }
   if (Date.now() - ultimaAcaoEm >= PARADO_ATE_CONVIDAR_MS) convidar('parado por 25s');
 }, 3000);
 
 function convidar(motivo) {
   if (jaUsouAjuda || chatEl || painelEl) return;
+  if (!M.iniciadoEm || Date.now() - M.iniciadoEm < PISO_PARA_CONVIDAR_MS) return;
   if (M.convites.length >= MAXIMO_DE_CONVITES) return;
   if (Date.now() - ultimoConviteEm < INTERVALO_MINIMO_ENTRE_CONVITES_MS) return;
   ultimoConviteEm = Date.now();
@@ -1239,23 +1254,19 @@ function convidar(motivo) {
     botao.classList.remove('is-open');
     const e = document.getElementById('sparkles');
     if (e) e.remove();
-  }, 5200);
+  }, 5600);
 }
 
 function mostrarDica(botao) {
   esconderDica();
-  const r = botao.getBoundingClientRect();
   coachEl = document.createElement('div');
   coachEl.className = 'lab-coach';
   coachEl.setAttribute('role', 'status');
   coachEl.innerHTML = M.convites.length > 1
     ? 'Para avisar a Pigz, use o <b>“Precisa de ajuda?”</b> aqui em cima.'
     : 'Travou? A ajuda da Pigz fica <b>aqui</b>.';
-  document.body.appendChild(coachEl);
-  const largura = coachEl.offsetWidth;
-  coachEl.style.top = (r.bottom + 12) + 'px';
-  coachEl.style.left = Math.max(12, Math.min(r.right - largura + 20, window.innerWidth - largura - 12)) + 'px';
-  setTimeout(esconderDica, 6000);
+  botao.parentElement.appendChild(coachEl);
+  setTimeout(esconderDica, 5200);
 }
 
 function esconderDica() {
