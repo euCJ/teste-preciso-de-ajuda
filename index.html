@@ -879,6 +879,22 @@ const SECONDARY_TASKS = [
 const ALL_TASKS = PRIMARY_TASKS.concat(SECONDARY_TASKS);
 const findTask = (id) => ALL_TASKS.find((t) => t.id === id) || null;
 
+/* O contador do Partner mostra "12/500" desde a primeira tecla, e 500 é o
+   TETO. Nas sessões do primeiro dia o lojista leu isso como meta: um encheu
+   245 caracteres repetindo a mesma frase sete vezes, outros pararam em 52, 55
+   e 56 — logo depois de cruzar o mínimo, quando o vermelho sumia.
+   Enquanto falta, o número na tela é o que falta; o teto só aparece quando
+   ele passa a ser a única restrição que sobra. */
+function textoDoContador(texto) {
+  const util = texto.trim().length;
+  if (util === 0) return 'mínimo de ' + MIN_DESCRIPTION_LENGTH + ' caracteres';
+  if (util < MIN_DESCRIPTION_LENGTH) {
+    const faltam = MIN_DESCRIPTION_LENGTH - util;
+    return 'faltam ' + faltam + (faltam === 1 ? ' caractere' : ' caracteres');
+  }
+  return texto.length + '/' + MAX_DESCRIPTION_LENGTH;
+}
+
 const WHERE_UNKNOWN = 'Não sei dizer';
 const WHERE_OPTIONS_BY_TASK = {
   imprimir: ['No computador','Na maquininha'],
@@ -1686,7 +1702,7 @@ function stepDetails(e) {
     '</div>' +
     '<div class="pz-counterrow">' +
       '<p class="pz-err" data-wizard-error>' + (e.description ? SVG.err + 'Detalhe um pouco mais.' : '') + '</p>' +
-      '<span class="pz-counter' + (e.description ? ' bad' : '') + '" id="contador">' + draft.description.length + '/' + MAX_DESCRIPTION_LENGTH + '</span>' +
+      '<span class="pz-counter' + (e.description ? ' bad' : '') + '" id="contador">' + textoDoContador(draft.description) + '</span>' +
     '</div></div>';
   html += '<div class="pz-col" style="gap:8px">' +
     '<label class="pz-qlabel' + (e.impact ? ' bad' : '') + '">' + impactQuestion() + ' *</label>' +
@@ -1784,7 +1800,7 @@ function ligar() {
       if (label) label.classList.toggle('bad', e.description);
       if (caixa) caixa.classList.toggle('bad', e.description);
       if (contador) {
-        contador.textContent = draft.description.length + '/' + MAX_DESCRIPTION_LENGTH;
+        contador.textContent = textoDoContador(draft.description);
         contador.classList.toggle('bad', e.description);
       }
       if (aviso) aviso.innerHTML = e.description ? SVG.err + 'Detalhe um pouco mais.' : '';
