@@ -950,7 +950,7 @@ function irPara(fase) {
    O envio é text/plain de propósito: é o único Content-Type que o navegador
    trata como requisição simples, e sem preflight o Apps Script — que não
    responde OPTIONS — aceita a chamada. */
-const ENDPOINT_PADRAO = '';
+const ENDPOINT_PADRAO = 'https://script.google.com/macros/s/AKfycbyzffpLhylKBt5vENgIoP_28cSOXJpeuSkjCfdkg3H4kBfgZrIOwq2nPh24n6DzPrsu/exec';
 const ENDPOINT = new URLSearchParams(location.search).get('api') || ENDPOINT_PADRAO;
 
 let ultimoEnvio = null;
