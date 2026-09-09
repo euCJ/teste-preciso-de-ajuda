@@ -1,6 +1,9 @@
 <title>Teste do Preciso de Ajuda</title>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
+<!-- Gravação da sessão no estilo do Clarity: rrweb registra as mutações do
+     DOM, o ponteiro e o scroll. Nada de captura de tela, nada de permissão. -->
+<script src="https://cdn.jsdelivr.net/npm/rrweb@2.0.0-alpha.4/dist/rrweb.min.js"></script>
 
 <style>
   /* ══════════════════════════════════════════════════════════════════════
@@ -650,14 +653,14 @@
   </ol>
 
   <p class="lab-fine">
-    <b>Nenhum chamado é aberto de verdade</b> e nada chega ao suporte. Registramos
-    o tempo, os cliques e o que você escrever. Se você autorizar, gravamos também
-    a sua tela — sem áudio, e o arquivo fica no seu computador.
+    <b>Nenhum chamado é aberto de verdade</b> e nada chega ao suporte. Enquanto
+    você usa esta página, registramos o tempo, os cliques, o caminho do ponteiro
+    e o que você escrever nos campos, para conseguirmos rever a sessão depois.
+    Não acessamos sua câmera, seu microfone nem nada fora desta aba.
   </p>
 
   <div class="lab-actions">
     <button class="lab-btn" id="start" type="button">Iniciar teste</button>
-    <label class="lab-check"><input type="checkbox" id="want-rec" checked> gravar a tela</label>
   </div>
 </main>
 
@@ -756,19 +759,21 @@
 <!-- ── 4. Fim ─────────────────────────────────────────────────────────── -->
 <main class="lab-view" id="view-end" hidden>
   <p class="lab-eyebrow">Teste concluído</p>
-  <h1 class="lab-h1">Pronto. Obrigado — isso vale mais que uma reunião</h1>
-  <p class="lab-lede" id="end-summary"></p>
+  <h1 class="lab-h1">Pronto. Muito obrigado pelo seu tempo</h1>
+  <!-- Sem prometer entrega: logo abaixo pode aparecer o aviso de que o envio
+       falhou, e as duas frases juntas se contradiriam. -->
+  <p class="lab-lede">
+    O que você mostrou aqui vai direto para as próximas decisões desta tela.
+  </p>
+  <p class="lab-fine">Pode fechar esta aba.</p>
 
-  <div class="lab-saved" id="save-state"><span>enviando…</span></div>
-
-  <p class="lab-fine" style="margin-top:40px"><b>O que foi registrado</b> — é este arquivo que chega ao time de produto.</p>
-  <pre class="lab-md" id="md-preview"></pre>
-
-  <div class="lab-actions">
-    <button class="lab-btn outline" id="dl-md" type="button">Baixar o .md</button>
-    <button class="lab-btn outline" id="dl-rec" type="button" hidden>Baixar a gravação</button>
+  <!-- Só aparece se o envio automático falhar: aí o lojista precisa agir. -->
+  <div id="end-fallback" hidden>
+    <p class="lab-fine" id="fallback-msg"></p>
+    <div class="lab-actions">
+      <button class="lab-btn outline" id="dl-md" type="button">Baixar minhas respostas</button>
+    </div>
   </div>
-  <p class="lab-fine" id="rec-hint"></p>
 </main>
 
 </div><!-- /.lab-main -->
@@ -861,7 +866,7 @@ const M = {
   cliques: 0,
   cliquesPerdidos: 0,
   marcos: [],
-  gravacao: 'não pedida',
+  gravacao: 'não iniciada',
   janela: null,
   navegador: navigator.userAgent,
   telaSimulada: 'Vendas (rota /merchant/:id/orders — o wizard chama de "Pedidos")',
@@ -962,7 +967,9 @@ function salvar() { /* o envio é pontual — ver enviarParaODrive() */ }
 async function enviarParaODrive(motivo) {
   if (!ENDPOINT) { marcarSalvo('sem-endpoint'); return false; }
   if (!M.duracaoTotalSegundos) M.duracaoTotalSegundos = +agora().toFixed(1);
-  const corpo = JSON.stringify({ sessionId: SESSION_ID, motivo: motivo, md: gerarMd(), dados: M });
+  const corpo = JSON.stringify({
+    sessionId: SESSION_ID, motivo: motivo, md: gerarMd(), dados: M, replay: eventos,
+  });
   ultimoEnvio = corpo;
   try {
     const r = await fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: corpo, redirect: 'follow' });
@@ -987,59 +994,80 @@ async function enviarParaODrive(motivo) {
 function despachoDeSaida() {
   if (!ENDPOINT || M.fase === 'fim' || !M.iniciadoEm) return;
   M.duracaoTotalSegundos = +agora().toFixed(1);
+  /* Sem o replay: o sendBeacon tem teto de 64KB, e um payload maior é
+     descartado inteiro pelo navegador. O replay já foi pelo reenvio periódico. */
   const corpo = JSON.stringify({ sessionId: SESSION_ID, motivo: 'abandonou em ' + M.fase, md: gerarMd(), dados: M });
   const blob = new Blob([corpo], { type: 'text/plain;charset=utf-8' });
   if (navigator.sendBeacon) navigator.sendBeacon(ENDPOINT, blob);
 }
 
+/* A tela final não presta contas do envio quando ele deu certo: o lojista não
+   tem nada a fazer com essa informação. Ela só aparece quando ele precisa
+   agir — e aí vira uma frase clara e um botão. */
 function marcarSalvo(estado, detalhe) {
-  const el = document.getElementById('save-state');
-  if (!el) return;
-  if (estado === 'ok') {
-    el.className = 'lab-saved ok';
-    el.textContent = '✓ respostas enviadas para a Pigz';
-  } else if (estado === 'provavel') {
-    el.className = 'lab-saved ok';
-    el.textContent = '✓ respostas enviadas para a Pigz';
-  } else if (estado === 'sem-endpoint') {
-    el.className = 'lab-saved warn';
-    el.textContent = 'Este teste não está configurado para enviar sozinho. Baixe o .md abaixo e mande para quem te chamou.';
-  } else {
-    el.className = 'lab-saved warn';
-    el.textContent = 'Não foi possível enviar automaticamente' + (detalhe ? ' (' + detalhe + ')' : '') + '. Baixe o .md abaixo e mande para quem te chamou.';
+  const bloco = document.getElementById('end-fallback');
+  if (!bloco) return;
+  const deuCerto = estado === 'ok' || estado === 'provavel';
+  bloco.hidden = deuCerto;
+  if (deuCerto) return;
+  document.getElementById('fallback-msg').innerHTML = estado === 'sem-endpoint'
+    ? '<b>Não conseguimos enviar suas respostas automaticamente.</b> Baixe o arquivo abaixo e mande para quem te convidou para o teste.'
+    : '<b>Não conseguimos enviar suas respostas automaticamente.</b> Baixe o arquivo abaixo e mande para quem te convidou para o teste.' +
+      (detalhe ? ' <span style="color:var(--n-500)">(' + detalhe + ')</span>' : '');
+}
+
+/* ═══ Gravação da sessão ═══════════════════════════════════════════════
+   No estilo do Clarity: em vez de capturar a tela — que exige permissão e
+   devolve um vídeo que ninguém consegue ler em lote —, o rrweb registra as
+   mutações do DOM, o ponteiro e o scroll. O replay é reconstruído depois a
+   partir dos próprios elementos, então nada sai daqui como imagem.
+
+   O que NÃO é registrado: campos de senha (o rrweb já os mascara) e qualquer
+   coisa fora desta aba. */
+let eventos = [];
+let pararRRWeb = null;
+
+function comecarGravacao() {
+  if (!window.rrweb || typeof rrweb.record !== 'function') {
+    M.gravacao = 'biblioteca não carregou';
+    return;
+  }
+  try {
+    pararRRWeb = rrweb.record({
+      emit: (e) => eventos.push(e),
+      /* Amostragem: o ponteiro a cada 50ms é suficiente para ver hesitação e
+         corta o grosso do volume; o input guarda só o valor final. */
+      sampling: { mousemove: 50, scroll: 150, input: 'last' },
+      recordCanvas: false,
+      collectFonts: false,
+      slimDOMOptions: { comment: true, headMetaSocial: true, headMetaVerification: true },
+      /* Um retrato completo a cada 30s: sem ele, um replay que começa no meio
+         não tem DOM de partida. */
+      checkoutEveryNms: 30000,
+    });
+    M.gravacao = 'gravando';
+    document.getElementById('rail-rec').classList.add('on');
+    document.getElementById('rail-rec-label').textContent = 'gravando a sessão';
+  } catch (err) {
+    M.gravacao = 'falhou: ' + (err && err.message);
   }
 }
 
-/* ═══ Gravação de tela ═════════════════════════════════════════════════ */
-let recorder = null, pedacos = [], blobGravacao = null;
-async function comecarGravacao() {
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) { M.gravacao = 'navegador não suporta'; return; }
-  try {
-    const stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 8 }, audio: false });
-    const tipos = ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm','video/mp4'];
-    const mime = tipos.find((t) => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
-    recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
-    recorder.ondataavailable = (e) => { if (e.data.size) pedacos.push(e.data); };
-    recorder.onstop = () => {
-      blobGravacao = new Blob(pedacos, { type: recorder.mimeType || 'video/webm' });
-      stream.getTracks().forEach((t) => t.stop());
-    };
-    recorder.start(2000);
-    stream.getVideoTracks()[0].addEventListener('ended', pararGravacao);
-    M.gravacao = 'gravando';
-    document.getElementById('rail-rec').classList.add('on');
-    document.getElementById('rail-rec-label').textContent = 'gravando a tela';
-  } catch (err) {
-    M.gravacao = 'recusada pelo lojista';
-  }
-}
 function pararGravacao() {
-  if (recorder && recorder.state !== 'inactive') { recorder.stop(); M.gravacao = 'gravada'; }
+  if (pararRRWeb) { try { pararRRWeb(); } catch (err) { /* já parado */ } pararRRWeb = null; }
+  if (M.gravacao === 'gravando') M.gravacao = eventos.length + ' eventos gravados';
   const r = document.getElementById('rail-rec');
   if (r) r.classList.remove('on');
   const l = document.getElementById('rail-rec-label');
-  if (l) l.textContent = M.gravacao === 'gravada' ? 'gravação pronta' : 'sem gravação';
+  if (l) l.textContent = eventos.length ? 'sessão gravada' : 'sem gravação';
 }
+
+/* Reenvio periódico: quem fecha a aba no meio não dispara nada com o replay
+   inteiro (o beacon do navegador só carrega 64KB). Com o reenvio, o pior caso
+   é perder o último minuto em vez da sessão toda. */
+setInterval(() => {
+  if (M.fase === 'tarefa' || M.fase === 'opiniao') enviarParaODrive('parcial');
+}, 60000);
 
 /* ═══ A tela de Vendas, quebrada ═══════════════════════════════════════
    Mesma grade do produto (info_container_row). Os defeitos plantados:
@@ -1086,11 +1114,10 @@ function pintarVendas() {
 pintarVendas();
 
 /* ═══ Começar ══════════════════════════════════════════════════════════ */
-document.getElementById('start').addEventListener('click', async () => {
+document.getElementById('start').addEventListener('click', () => {
   M.iniciadoEm = Date.now();
   M.janela = window.innerWidth + '×' + window.innerHeight;
-  if (document.getElementById('want-rec').checked) await comecarGravacao();
-  else M.gravacao = 'dispensada pelo lojista';
+  comecarGravacao();
   irPara('tarefa');
   /* useAutoCollapse: a pílula se apresenta aberta e recolhe em 3,9s, depois
      de as estrelas terminarem — SPARKLE_TOTAL_MS + SPARKLE_REST_MS. */
@@ -1732,49 +1759,23 @@ function concluir() {
   pararGravacao();
   irPara('fim');
 
-  const t = task();
-  const min = Math.floor(M.duracaoTotalSegundos / 60);
-  const seg = Math.round(M.duracaoTotalSegundos % 60);
-  document.getElementById('end-summary').textContent =
-    'Você levou ' + min + 'min ' + seg + 's, deu ' + M.cliques + ' cliques e ' +
-    (M.protocolo ? 'abriu o chamado ' + M.protocolo : 'não chegou a abrir o chamado') +
-    (t ? ' sobre "' + t.label + '".' : '.');
-
   document.getElementById('rail-time').textContent =
     Math.floor(M.duracaoTotalSegundos / 60) + 'min ' + Math.round(M.duracaoTotalSegundos % 60) + 's no total';
 
   const md = gerarMd();
-  document.getElementById('md-preview').textContent = md;
   enviarParaODrive('concluiu');
 
+  /* O download é rede de segurança, não parte do fluxo: leva o relatório e o
+     replay num arquivo só, para o lojista não ter que enviar dois. */
   document.getElementById('dl-md').addEventListener('click', async () => {
-    const nome = 'teste-preciso-de-ajuda-' + SESSION_ID + '.md';
+    const pacote = JSON.stringify({ sessionId: SESSION_ID, md: md, dados: M, replay: eventos }, null, 1);
+    const nome = 'teste-preciso-de-ajuda-' + SESSION_ID + '.json';
     const dl = await usar('downloads');
-    if (dl) { try { await dl.save({ filename: nome, data: md }); return; } catch (err) { /* fallback abaixo */ } }
+    if (dl) { try { await dl.save({ filename: nome, data: pacote }); return; } catch (err) { /* fallback abaixo */ } }
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([md], { type: 'text/markdown' }));
+    a.href = URL.createObjectURL(new Blob([pacote], { type: 'application/json' }));
     a.download = nome; a.click();
   });
-
-  const btnRec = document.getElementById('dl-rec');
-  const hint = document.getElementById('rec-hint');
-  if (M.gravacao === 'gravada') {
-    setTimeout(() => {
-      btnRec.hidden = false;
-      hint.textContent = 'A gravação fica só no seu computador — o teste não a envia. Baixe e mande para quem te chamou.';
-      btnRec.addEventListener('click', async () => {
-        if (!blobGravacao) return;
-        const nome = 'teste-preciso-de-ajuda-' + SESSION_ID + '.webm';
-        const dl = await usar('downloads');
-        if (dl) { try { await dl.save({ filename: nome, data: blobGravacao }); return; } catch (err) { /* fallback */ } }
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blobGravacao);
-        a.download = nome; a.click();
-      });
-    }, 700);
-  } else {
-    hint.textContent = 'Sem gravação de tela nesta sessão (' + M.gravacao + '). As respostas e os tempos foram registrados.';
-  }
 }
 
 function gerarMd() {
@@ -1795,7 +1796,7 @@ function gerarMd() {
     '- **Abriu "Ver mais":** ' + (M.verMaisAberto ? 'sim' : 'não'),
     '- **Trocou de tarefa:** ' + M.trocasDeTarefa + 'x · **Voltou:** ' + M.voltas + 'x',
     '- **Barrado por campo faltando:** ' + (M.barradoEm.length ? M.barradoEm.map((b) => 'passo ' + b.passo + ' (' + b.emSegundos + 's)').join(', ') : 'nunca'),
-    '- **Gravação de tela:** ' + M.gravacao,
+    '- **Replay da sessão:** ' + M.gravacao,
     '- **Janela:** ' + M.janela + ' · ' + M.navegador,
     '',
     '## Chamado que o lojista montou',
