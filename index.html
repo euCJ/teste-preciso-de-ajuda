@@ -1632,7 +1632,7 @@ function stepDetails(e) {
       '</div>' +
     '</div>' +
     '<div class="pz-counterrow">' +
-      (e.description ? erro('Detalhe um pouco mais.') : '<span data-wizard-error></span>') +
+      '<p class="pz-err" data-wizard-error>' + (e.description ? SVG.err + 'Detalhe um pouco mais.' : '') + '</p>' +
       '<span class="pz-counter' + (e.description ? ' bad' : '') + '" id="contador">' + draft.description.length + '/' + MAX_DESCRIPTION_LENGTH + '</span>' +
     '</div></div>';
   html += '<div class="pz-col" style="gap:8px">' +
@@ -1717,16 +1717,36 @@ function ligar() {
 
   const ta = q('#relato');
   if (ta) {
-    ta.addEventListener('input', () => {
-      draft.description = ta.value.slice(0, MAX_DESCRIPTION_LENGTH);
-      q('#contador').textContent = draft.description.length + '/' + MAX_DESCRIPTION_LENGTH;
+    /* O aviso de "detalhe um pouco mais" tem que sumir na tecla em que o
+       relato passa dos 50 — é ali que o lojista descobre que já basta. No
+       Partner isso sai de graça no re-render do React; aqui o passo inteiro é
+       reconstruído a cada pintura, e repintar no meio da digitação apagaria o
+       cursor. Então o estado do campo é atualizado no lugar. */
+    const atualizarRelato = () => {
+      const e = errors();
+      const label = q('label[for="relato"]');
+      const caixa = q('.pz-descbox');
+      const contador = q('#contador');
+      const aviso = q('.pz-counterrow [data-wizard-error]');
+      if (label) label.classList.toggle('bad', e.description);
+      if (caixa) caixa.classList.toggle('bad', e.description);
+      if (contador) {
+        contador.textContent = draft.description.length + '/' + MAX_DESCRIPTION_LENGTH;
+        contador.classList.toggle('bad', e.description);
+      }
+      if (aviso) aviso.innerHTML = e.description ? SVG.err + 'Detalhe um pouco mais.' : '';
       const btn = q('#avancar');
       if (btn) btn.classList.toggle('soft', nextDisabled());
+    };
+
+    ta.addEventListener('input', () => {
+      draft.description = ta.value.slice(0, MAX_DESCRIPTION_LENGTH);
+      atualizarRelato();
     });
     ta.addEventListener('blur', () => {
       descBlurred = true;
       marco('escreveu-relato', draft.description.length + ' caracteres');
-      if (descTooShort()) pintar();
+      atualizarRelato();
     });
   }
   const an = q('#anexar');
